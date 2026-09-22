@@ -1,0 +1,7 @@
+{
+  "name": "Muhammad 2000 ai agents",
+  "description": "Muhammad 2000 AI Agents - Conversational AI and autonomous multi-agent task workflow orchestration powered by 2,000 specialized AI agent intelligences.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
