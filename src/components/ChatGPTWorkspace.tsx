@@ -39,7 +39,6 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { AutomatedWorkflowModal } from './AutomatedWorkflowModal';
-import { VisualWorkflowDashboard } from './VisualWorkflowDashboard';
 import { BrandLogo } from './BrandLogo';
 import { useAppTheme } from '../context/ThemeContext';
 import { extractFilesFromDeliverable, downloadProjectAsZip, buildRunnableHtml, ProjectFile } from '../utils/zipGenerator';
@@ -116,7 +115,6 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
   
   // Task Workflow Automation Modal State
   const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState<boolean>(false);
-  const [currentWorkspaceView, setCurrentWorkspaceView] = useState<'chat' | 'workflow_canvas'>('chat');
   
   // Project Deliverable & Google Launch Modal
   const [activeZipModal, setActiveZipModal] = useState<{
@@ -553,32 +551,50 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
         className="hidden"
       />
 
+      {/* Mobile Backdrop for Sidebar */}
+      {isSidebarOpen && (
+        <div
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 z-30 bg-slate-950/75 backdrop-blur-xs sm:hidden transition-opacity"
+          aria-hidden="true"
+        />
+      )}
+
       {/* LEFT SIDEBAR (ChatGPT style) */}
       <aside
         className={`${
-          isSidebarOpen ? 'w-64 sm:w-72' : 'w-0 -translate-x-full'
-        } transition-all duration-300 ease-in-out flex flex-col border-r border-slate-800/80 bg-slate-900/90 backdrop-blur-md shrink-0 z-20 overflow-hidden select-none`}
+          isSidebarOpen ? 'w-64 sm:w-72 fixed inset-y-0 left-0 sm:relative sm:inset-auto z-40 sm:z-20' : 'w-0 -translate-x-full'
+        } transition-all duration-300 ease-in-out flex flex-col border-r border-slate-800/80 bg-slate-900/95 backdrop-blur-md shrink-0 overflow-hidden select-none`}
       >
         {/* New Chat Button & Search */}
         <div className="p-3 border-b border-slate-800/80 flex flex-col gap-2">
-          <button
-            onClick={handleCreateNewChat}
-            className="flex items-center justify-between w-full rounded-xl bg-indigo-600/90 hover:bg-indigo-600 px-3.5 py-2.5 text-xs font-semibold text-white shadow-md shadow-indigo-600/20 transition-all hover:scale-[1.01] active:scale-[0.99]"
-          >
-            <div className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              <span>
-                {language === 'roman-urdu'
-                  ? 'Nayi Chat Shuru Karein'
-                  : language === 'urdu'
-                  ? 'نئی چیٹ شروع کریں'
-                  : 'New chat'}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCreateNewChat}
+              className="flex-1 flex items-center justify-between rounded-xl bg-indigo-600/90 hover:bg-indigo-600 px-3.5 py-2.5 text-xs font-semibold text-white shadow-md shadow-indigo-600/20 transition-all hover:scale-[1.01] active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                <span>
+                  {language === 'roman-urdu'
+                    ? 'Nayi Chat'
+                    : language === 'urdu'
+                    ? 'نئی چیٹ'
+                    : 'New chat'}
+                </span>
+              </div>
+              <span className="text-[10px] bg-indigo-700/60 px-1.5 py-0.5 rounded font-mono">
+                +
               </span>
-            </div>
-            <span className="text-[10px] bg-indigo-700/60 px-1.5 py-0.5 rounded font-mono">
-              +
-            </span>
-          </button>
+            </button>
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="sm:hidden p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
+              title="Close sidebar"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          </div>
 
           {/* Search Chats */}
           <div className="relative">
@@ -668,7 +684,7 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
           >
             <div className="flex items-center gap-2">
               <LayoutGrid className="h-3.5 w-3.5 text-indigo-400" />
-              <span>2,000 Agents Fleet</span>
+              <span>2,000 AI Agents</span>
             </div>
             <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-mono text-emerald-400">
               Active
@@ -718,52 +734,46 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
               )}
             </button>
 
-            {/* View Switcher: Chat vs Visual Workflow Dashboard */}
-            <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900/80 p-0.5 text-xs font-medium">
-              <button
-                id="btn-switch-to-chat"
-                onClick={() => setCurrentWorkspaceView('chat')}
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 transition-all ${
-                  currentWorkspaceView === 'chat'
-                    ? 'bg-slate-800 text-white shadow-sm font-semibold'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Conversational AI Assistant"
-              >
-                <MessageSquare className="h-3.5 w-3.5" />
-                <span>Chat</span>
-              </button>
-              <button
-                id="btn-switch-to-workflow"
-                onClick={() => setCurrentWorkspaceView('workflow_canvas')}
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 transition-all ${
-                  currentWorkspaceView === 'workflow_canvas'
-                    ? 'bg-indigo-600 text-white shadow-sm font-semibold'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                title="Visual Agent Task Chains & Drag-and-Drop Sequencer"
-              >
-                <Workflow className="h-3.5 w-3.5 text-indigo-300" />
-                <span>Workflow Canvas</span>
-                <span className="hidden xl:inline-block rounded bg-indigo-500/30 px-1 py-0.2 text-[9px] font-mono text-indigo-200">
-                  Drag & Drop
-                </span>
-              </button>
-            </div>
-
-            {/* Automate Task Workflow Action Button */}
+            {/* Pipeline Wizard Action Button (Opens modal with Pipeline Wizard + Workflow Canvas) */}
             <button
               id="btn-open-workflow-modal"
               onClick={() => setIsWorkflowModalOpen(true)}
-              className="hidden sm:flex items-center gap-1.5 rounded-xl border border-indigo-500/40 bg-indigo-500/15 hover:bg-indigo-500/25 px-3 py-1.5 text-xs font-semibold text-indigo-300 shadow-sm transition-all group"
-              title="2,000 AI Agent Fleet Task Automation Workflow"
+              className="flex items-center gap-1.5 rounded-xl border border-indigo-500/40 bg-indigo-500/15 hover:bg-indigo-500/25 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-indigo-300 shadow-sm transition-all group shrink-0"
+              title="2,000 AI Agent Task Automation & Pipeline Wizard"
             >
-              <Zap className="h-3.5 w-3.5 text-indigo-400 group-hover:rotate-12 transition-transform" />
-              <span>Pipeline Wizard</span>
+              <Zap className="h-3.5 w-3.5 text-amber-400 group-hover:rotate-12 transition-transform" />
+              <span className="hidden xs:inline sm:inline">Pipeline Wizard & Canvas</span>
+              <span className="xs:hidden sm:hidden">Pipeline</span>
               <span className="rounded bg-indigo-500/30 px-1.5 py-0.5 text-[9px] font-mono text-indigo-200">
-                2,000 Fleet
+                2,000 AI Agent
               </span>
             </button>
+
+            {/* Single Box Language Selector (Shifted next to Pipeline box where Plus box was) */}
+            <div
+              id="box-mobile-language-selector"
+              className="flex items-center rounded-xl border border-slate-800 bg-slate-900/95 px-2 py-1 text-xs shadow-sm hover:border-slate-700 transition-all shrink-0"
+              title="Change Language (زبان تبدیل کریں)"
+            >
+              <Globe className="h-3.5 w-3.5 text-indigo-400 mr-1.5 shrink-0" />
+              <select
+                id="select-language-dropdown"
+                value={language}
+                onChange={(e) => onLanguageChange(e.target.value as any)}
+                aria-label="Change Language"
+                className="bg-transparent text-xs text-slate-200 font-medium focus:outline-none cursor-pointer pr-1"
+              >
+                <option value="roman-urdu" className="bg-slate-950 text-slate-100">
+                  Roman Urdu
+                </option>
+                <option value="urdu" className="bg-slate-950 text-slate-100">
+                  اردو (Urdu)
+                </option>
+                <option value="english" className="bg-slate-950 text-slate-100">
+                  English (EN)
+                </option>
+              </select>
+            </div>
 
             {/* Model & Capability Pill */}
             <div className="hidden md:flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900/80 p-0.5 text-xs font-medium">
@@ -808,59 +818,24 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
             </div>
           </div>
 
-          {/* Right Header: New Chat / Language */}
+          {/* Right Header: New Chat Button */}
           <div className="flex items-center gap-2">
             <button
+              id="btn-header-new-chat"
               onClick={handleCreateNewChat}
-              className="sm:hidden p-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800"
-              title="New Chat"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/90 hover:bg-slate-800 hover:border-slate-700 px-2.5 py-1.5 text-xs text-slate-300 hover:text-white shadow-sm transition-all"
+              title="Start New Chat"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5 text-indigo-400" />
+              <span className="hidden sm:inline">New Chat</span>
             </button>
-
-            {/* Language Quick Switcher */}
-            <div className="hidden sm:flex items-center rounded-lg border border-slate-800 bg-slate-900 p-0.5 text-xs">
-              <button
-                onClick={() => onLanguageChange('roman-urdu')}
-                className={`px-2 py-0.5 rounded text-[11px] ${
-                  language === 'roman-urdu' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400'
-                }`}
-              >
-                Roman Urdu
-              </button>
-              <button
-                onClick={() => onLanguageChange('urdu')}
-                className={`px-2 py-0.5 rounded text-[11px] ${
-                  language === 'urdu' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400'
-                }`}
-              >
-                اردو
-              </button>
-              <button
-                onClick={() => onLanguageChange('english')}
-                className={`px-2 py-0.5 rounded text-[11px] ${
-                  language === 'english' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400'
-                }`}
-              >
-                EN
-              </button>
-            </div>
           </div>
         </div>
 
-        {/* CHAT CONVERSATION VIEW VS WORKFLOW DASHBOARD */}
-        {currentWorkspaceView === 'workflow_canvas' ? (
-          <div className="flex-1 flex flex-col h-full overflow-hidden">
-            <VisualWorkflowDashboard
-              isEmbedded={true}
-              languagePreference={language}
-              onClose={() => setCurrentWorkspaceView('chat')}
-            />
-          </div>
-        ) : (
-          <div className="flex-1 flex flex-col h-full overflow-hidden">
-            {/* MESSAGE STREAM */}
-            <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-6 space-y-6 scrollbar-thin scrollbar-thumb-slate-800">
+        {/* SINGLE CHAT VIEW */}
+        <div className="flex-1 flex flex-col h-full overflow-hidden">
+          {/* MESSAGE STREAM */}
+          <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5 sm:space-y-6 scrollbar-thin scrollbar-thumb-slate-800">
           {activeSession.messages.length === 0 ? (
             /* Empty State: ChatGPT Signature Greeting & Suggestions */
             <div className="max-w-2xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
@@ -878,10 +853,10 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
 
               <p className="text-sm text-slate-400 max-w-md mb-8">
                 {language === 'roman-urdu'
-                  ? 'Main Muhammad 2000 AI hoon. 2,000 Autonomous AI Agents ki fleet ke sath har qism ke complex tasks, code development, business strategy aur workflows ko automate karein.'
+                  ? 'Main Muhammad 2000 AI hoon. 2,000 Autonomous AI Agents ke sath har qism ke complex tasks, code development, business strategy aur workflows ko automate karein.'
                   : language === 'urdu'
                   ? 'محمد 2000 اے آئی: 2000 خودکار ایجنٹس کی طاقت سے اپنے پیچیدہ کام، کوڈنگ اور بزنس ورک فلو خودکار کروائیں۔'
-                  : 'Muhammad 2000 AI Fleet - Advanced multi-agent reasoning, code development, and autonomous workflow automation.'}
+                  : 'Muhammad 2000 AI - Advanced 2,000 AI Agent reasoning, code development, and autonomous workflow automation.'}
               </p>
 
               {/* Task Automation Workflow Quick Launcher Banner */}
@@ -928,7 +903,7 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                     ⚡ <span>Autonomous Task Workflow</span>
                   </div>
                   <div className="text-slate-300 line-clamp-2">
-                    2,000 Agents fleet se apna complete project ya complex task automate karwayein.
+                    2,000 AI Agents se apna complete project ya complex task automate karwayein.
                   </div>
                 </button>
 
@@ -1341,17 +1316,17 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                     ? 'مجھ سے کچھ بھی پوچھیں... (Shift+Enter نئی لائن کے لیے)'
                     : 'Ask Muhammad 2000 AI anything... (Shift+Enter for new line)'
                 }
-                className="w-full resize-none bg-transparent px-2 py-1 text-sm text-slate-100 placeholder-slate-500 focus:outline-none max-h-48 scrollbar-thin scrollbar-thumb-slate-700"
+                className="w-full resize-none bg-transparent px-2 py-1 text-base sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none max-h-48 scrollbar-thin scrollbar-thumb-slate-700"
               />
 
               {/* Bottom Controls Bar */}
-              <div className="flex items-center justify-between pt-2 px-1">
+              <div className="flex items-center justify-between pt-2 px-1 gap-2">
                 {/* Left: Tools (Attach, Voice, Deep Think, Web Search) */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto scrollbar-none py-0.5">
                   {/* File / Image Attach */}
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
                     title="Attach image or document"
                   >
                     <Paperclip className="h-4 w-4" />
@@ -1360,7 +1335,7 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                   {/* Voice Microphone */}
                   <button
                     onClick={toggleVoiceInput}
-                    className={`p-1.5 rounded-lg transition-all ${
+                    className={`p-1.5 rounded-lg transition-all shrink-0 ${
                       isListening
                         ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse'
                         : 'text-slate-400 hover:text-white hover:bg-slate-800'
@@ -1375,7 +1350,7 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                     onClick={() =>
                       setActiveMode(activeMode === 'deep_thinking' ? 'standard' : 'deep_thinking')
                     }
-                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition-all ${
+                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition-all shrink-0 ${
                       activeMode === 'deep_thinking'
                         ? 'bg-purple-600/30 text-purple-300 border border-purple-500/40'
                         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
@@ -1391,7 +1366,7 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                     onClick={() =>
                       setActiveMode(activeMode === 'web_search' ? 'standard' : 'web_search')
                     }
-                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition-all ${
+                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition-all shrink-0 ${
                       activeMode === 'web_search'
                         ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40'
                         : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
@@ -1406,13 +1381,13 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                   <button
                     type="button"
                     onClick={() => setIsWorkflowModalOpen(true)}
-                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-indigo-300 hover:bg-indigo-500/15 hover:text-indigo-200 border border-indigo-500/30 transition-all shadow-sm"
-                    title="Automate Task with 2,000 Agents Workflow"
+                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-indigo-300 hover:bg-indigo-500/15 hover:text-indigo-200 border border-indigo-500/30 transition-all shadow-sm shrink-0"
+                    title="Automate Task with 2,000 AI Agents Pipeline Wizard"
                   >
                     <Workflow className="h-3.5 w-3.5 text-indigo-400" />
                     <span className="hidden sm:inline">Automate</span>
                     <span className="rounded bg-indigo-500/20 px-1 py-0.2 text-[9px] font-mono text-indigo-300">
-                      Fleet
+                      2000 AI Agent
                     </span>
                   </button>
                 </div>
@@ -1421,7 +1396,7 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                 <button
                   onClick={() => handleSendMessage()}
                   disabled={isLoading || (!inputValue.trim() && !attachedImage)}
-                  className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all ${
+                  className={`flex h-8 w-8 items-center justify-center rounded-xl transition-all shrink-0 ${
                     isLoading || (!inputValue.trim() && !attachedImage)
                       ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
                       : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-md shadow-indigo-600/30 active:scale-95'
@@ -1440,8 +1415,7 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
           </div>
         </div>
       </div>
-    )}
-  </main>
+    </main>
 
       {/* SETTINGS MODAL */}
       {isSettingsOpen && (
@@ -1538,6 +1512,8 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
       <AutomatedWorkflowModal
         isOpen={isWorkflowModalOpen}
         onClose={() => setIsWorkflowModalOpen(false)}
+        languagePreference={language}
+        onLanguageChange={onLanguageChange}
       />
 
       {/* Project Deliverable & Google Launch Modal */}

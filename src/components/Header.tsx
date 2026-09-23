@@ -39,8 +39,8 @@ export const Header: React.FC<HeaderProps> = ({
           <BrandLogo size="sm" showText={true} />
         </div>
 
-        {/* Center: Main View Tabs */}
-        <div className={`flex items-center rounded-xl border p-1 text-xs shadow-inner ${isLight ? 'border-slate-200 bg-slate-100/90' : 'border-slate-800 bg-slate-900/90'}`}>
+        {/* Center: Main View Tabs (Desktop / Tablet) */}
+        <div className={`hidden md:flex items-center rounded-xl border p-1 text-xs shadow-inner ${isLight ? 'border-slate-200 bg-slate-100/90' : 'border-slate-800 bg-slate-900/90'}`}>
           <button
             onClick={() => onTabChange('chat')}
             className={`flex items-center gap-1.5 rounded-lg px-2.5 sm:px-3 py-1.5 font-medium transition-all ${
@@ -61,7 +61,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <MessageSquareCode className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Tasks (Direct ZIP)</span>
+            <span>Tasks (Direct ZIP)</span>
           </button>
           <button
             onClick={() => onTabChange('directory')}
@@ -72,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
             }`}
           >
             <LayoutGrid className="h-3.5 w-3.5" />
-            <span>2,000 Fleet</span>
+            <span>2,000 AI Agent</span>
           </button>
         </div>
 

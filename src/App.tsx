@@ -9,6 +9,7 @@ import { SwarmModal } from './components/SwarmModal';
 import { SmartAutoDispatcher } from './components/SmartAutoDispatcher';
 import { TaskHistoryDrawer } from './components/TaskHistoryDrawer';
 import { AgentCustomizerModal } from './components/AgentCustomizerModal';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { Agent, TaskExecution } from './types';
 import { searchAgentFleet, getAgentByNumber } from './data/agentFleet';
 import { loadTaskHistory, saveTaskHistory } from './utils/storage';
@@ -105,7 +106,7 @@ function AppContent() {
 
       {/* Main Content Area */}
       {activeTab === 'chat' ? (
-        <main className="flex-1 flex flex-col w-full h-[calc(100vh-53px)] overflow-hidden">
+        <main className="flex-1 flex flex-col w-full h-[calc(100dvh-54px-56px)] md:h-[calc(100vh-54px)] overflow-hidden">
           <ChatGPTWorkspace
             language={language}
             onLanguageChange={setLanguage}
@@ -113,7 +114,7 @@ function AppContent() {
           />
         </main>
       ) : activeTab === 'workspace' ? (
-        <main className="flex-1 flex flex-col max-w-5xl w-full mx-auto px-3 sm:px-6">
+        <main className="flex-1 flex flex-col max-w-5xl w-full mx-auto px-3 sm:px-6 pb-20 md:pb-6">
           <HiveMindWorkspace language={language} />
         </main>
       ) : (
@@ -125,7 +126,7 @@ function AppContent() {
             language={language}
           />
 
-          <main className="mx-auto max-w-7xl w-full flex-1 px-4 py-5 sm:px-6 pb-24">
+          <main className="mx-auto max-w-7xl w-full flex-1 px-4 py-5 sm:px-6 pb-28 md:pb-24">
             {/* Search, Filter Bar & Quick Stats */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-6">
               {/* Search Bar */}
@@ -370,6 +371,13 @@ function AppContent() {
           language={language}
         />
       )}
+
+      {/* Mobile Navigation Bar */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        language={language}
+      />
     </div>
   );
 }

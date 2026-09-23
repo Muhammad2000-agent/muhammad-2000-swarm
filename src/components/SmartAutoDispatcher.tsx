@@ -112,8 +112,8 @@ export const SmartAutoDispatcher: React.FC<SmartAutoDispatcherProps> = ({
     setMatchedAgents(found);
     setRationale(
       language === 'roman-urdu'
-        ? `Aapki request ke mutabiq 2000 fleet se behtareen 3 models match kiye gaye hain.`
-        : `Matched top 3 specialized models from the 2,000 fleet for your request.`
+        ? `Aapki request ke mutabiq 2,000 AI Agents se behtareen 3 models match kiye gaye hain.`
+        : `Matched top 3 specialized models from the 2,000 AI Agents for your request.`
     );
     setIsMatching(false);
   };
@@ -133,7 +133,7 @@ export const SmartAutoDispatcher: React.FC<SmartAutoDispatcherProps> = ({
                   ? 'Smart AI Dispatcher (2000 Agent Matcher)'
                   : language === 'urdu'
                   ? 'سمارٹ اے آئی ڈسپیچر (۲۰۰۰ ماڈلز)'
-                  : 'Smart AI Dispatcher (Fleet Mobilizer)'}
+                  : 'Smart AI Dispatcher (2,000 AI Agent Mobilizer)'}
               </h2>
               <p className="text-xs text-slate-400">
                 {language === 'roman-urdu'

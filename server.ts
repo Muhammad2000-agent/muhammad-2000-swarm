@@ -30,14 +30,15 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
-// Resilient Gemini models cascade with automatic fallback for high-traffic or deprecated models
+// Resilient 100% Free Gemini models cascade
 export const RESILIENT_GEMINI_MODELS = [
-  "gemini-3.6-flash",
-  "gemini-3.1-flash-lite",
   "gemini-3.8-flash",
+  "gemini-3.1-flash-lite",
   "gemini-flash-latest",
-  "gemini-3.1-pro-preview",
 ];
+
+// Helper delay with jitter
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function generateWithResilientModels(
   ai: GoogleGenAI,
@@ -52,61 +53,77 @@ async function generateWithResilientModels(
 ): Promise<string> {
   const timeoutMs = params.timeoutMs || 25000;
 
-  for (const model of RESILIENT_GEMINI_MODELS) {
-    try {
-      const config: any = {
-        temperature: params.temperature ?? 0.7,
-      };
-      if (params.systemInstruction) {
-        config.systemInstruction = params.systemInstruction;
-      }
-      if (params.responseMimeType) {
-        config.responseMimeType = params.responseMimeType;
-      }
-      if (params.tools) {
-        config.tools = params.tools;
-      }
-
-      const generatePromise = ai.models.generateContent({
-        model,
-        contents: params.contents,
-        config,
-      });
-
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout with ${model}`)), timeoutMs)
-      );
-
-      const result: any = await Promise.race([generatePromise, timeoutPromise]);
-      if (result?.text && result.text.trim()) {
-        return result.text.trim();
-      }
-    } catch (err: any) {
-      console.warn(`Model ${model} unavailable or failed (${err?.message}), attempting next resilient candidate...`);
-      // If tools caused failure on this model, attempt once without tools
-      if (params.tools) {
-        try {
-          const noToolConfig: any = {
-            temperature: params.temperature ?? 0.7,
-          };
-          if (params.systemInstruction) noToolConfig.systemInstruction = params.systemInstruction;
-          if (params.responseMimeType) noToolConfig.responseMimeType = params.responseMimeType;
-
-          const retryPromise = ai.models.generateContent({
-            model,
-            contents: params.contents,
-            config: noToolConfig,
-          });
-          const retryTimeout = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout with fallback ${model}`)), 12000)
-          );
-          const retryResult: any = await Promise.race([retryPromise, retryTimeout]);
-          if (retryResult?.text && retryResult.text.trim()) {
-            return retryResult.text.trim();
-          }
-        } catch {
-          // move to next model in loop
+  for (let mIdx = 0; mIdx < RESILIENT_GEMINI_MODELS.length; mIdx++) {
+    const model = RESILIENT_GEMINI_MODELS[mIdx];
+    
+    // Up to 2 attempts per model (handles transient 503 high demand spike with small backoff)
+    const maxAttempts = 2;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const config: any = {
+          temperature: params.temperature ?? 0.7,
+        };
+        if (params.systemInstruction) {
+          config.systemInstruction = params.systemInstruction;
         }
+        if (params.responseMimeType) {
+          config.responseMimeType = params.responseMimeType;
+        }
+        if (params.tools) {
+          config.tools = params.tools;
+        }
+
+        const generatePromise = ai.models.generateContent({
+          model,
+          contents: params.contents,
+          config,
+        });
+
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout with ${model}`)), timeoutMs)
+        );
+
+        const result: any = await Promise.race([generatePromise, timeoutPromise]);
+        if (result?.text && result.text.trim()) {
+          return result.text.trim();
+        }
+      } catch (err: any) {
+        const errMsg = err?.message || String(err);
+        const is503OrRateLimit = errMsg.includes("503") || errMsg.includes("UNAVAILABLE") || errMsg.includes("high demand") || errMsg.includes("429");
+        
+        // If 503 and we have an attempt remaining for this model, wait 800ms-1200ms before retrying
+        if (is503OrRateLimit && attempt < maxAttempts) {
+          await delay(800 + Math.random() * 400);
+          continue;
+        }
+
+        // If tools caused failure on this model, attempt once without tools
+        if (params.tools) {
+          try {
+            const noToolConfig: any = {
+              temperature: params.temperature ?? 0.7,
+            };
+            if (params.systemInstruction) noToolConfig.systemInstruction = params.systemInstruction;
+            if (params.responseMimeType) noToolConfig.responseMimeType = params.responseMimeType;
+
+            const retryPromise = ai.models.generateContent({
+              model,
+              contents: params.contents,
+              config: noToolConfig,
+            });
+            const retryTimeout = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error(`Timeout with fallback ${model}`)), 12000)
+            );
+            const retryResult: any = await Promise.race([retryPromise, retryTimeout]);
+            if (retryResult?.text && retryResult.text.trim()) {
+              return retryResult.text.trim();
+            }
+          } catch {
+            // move to next model in loop
+          }
+        }
+        // Break to try next candidate in RESILIENT_GEMINI_MODELS
+        break;
       }
     }
   }
@@ -151,28 +168,61 @@ app.post("/api/chat", async (req, res) => {
       langNote = "Seamlessly detect the user's language (Roman Urdu, Urdu, English, etc.) and respond naturally in that exact language and conversational style.";
     }
 
-    const systemInstruction = `You are "Muhammad 2000 AI", an ultra-intelligent, highly versatile conversational AI assistant powered by the collective intelligence of 2,000 specialized AI agent reasoning nodes.
+    const isCodingRequest = messages.some((m: any) => {
+      const c = (m.content || "").toLowerCase();
+      return (
+        c.includes("code") ||
+        c.includes("coding") ||
+        c.includes("program") ||
+        c.includes("script") ||
+        c.includes("html") ||
+        c.includes("css") ||
+        c.includes("javascript") ||
+        c.includes("react") ||
+        c.includes("python") ||
+        c.includes("banao") ||
+        c.includes("bana do") ||
+        c.includes("banayein") ||
+        c.includes("project") ||
+        c.includes("app") ||
+        c.includes("website") ||
+        c.includes("game")
+      );
+    });
 
-Your core traits and rules:
-1. Ultra-Intelligent AI Versatility:
-   - Answer general knowledge and daily questions with depth and clarity
-   - Brainstorm solutions, strategic roadmaps, creative ideas, and project plans
-   - Write creative stories, poetry, essays, articles, and speeches
-   - Compose professional emails, cover letters, and messages in Roman Urdu, Urdu, or English
-   - Solve math problems, logic puzzles, scientific questions, and homework step-by-step
-   - Brainstorm business ideas, marketing campaigns, YouTube scripts, and startup strategies
-   - Translate, summarize long documents, rewrite text, and proofread
-   - Teach and tutor any subject simply with real-world analogies
-2. Conversational Quality:
-   - Always be friendly, thoughtful, polite, and helpful.
-   - Use clean Markdown formatting: headings, bold text, bullet points, and numbered steps.
-   - Speak naturally. DO NOT force code snippets unless the user specifically asks for code, programming, scripts, HTML/CSS, or software development!
-3. Coding & Project Creation Rules (WHEN ASKED):
-   - When code, programming, or project creation is requested: Provide the complete, production-ready, finished implementation without lazy stubs, placeholders, or unfinished parts ("pura kaam karke do").
-   - Structure multi-file solutions with explicit filename labels in the code fence, like \`\`\`html [index.html], \`\`\`css [style.css], \`\`\`javascript [script.js], \`\`\`python [main.py], or \`\`\`markdown [README.md] so the system can package them into a direct downloadable ZIP file for the user.
-4. Deep Thinking Mode:
-   - If deep thinking is activated, provide an exhaustive, multi-perspective breakdown examining nuances, trade-offs, and deep analytical insight.
-${customSystemInstruction ? `User Custom Instructions: ${customSystemInstruction}\n` : ""}${langNote}`;
+    const systemInstruction = `You are "Muhammad 2000 AI", an elite, world-class software engineering and reasoning AI assistant powered by 2,000 specialized autonomous agent nodes.
+
+CORE CAPABILITIES & EXECUTION RULES:
+1. Ultra-High Craftsmanship & Complete Code ("Pura Kaam Karke Do"):
+   - When asked for any code, game, website, script, utility, component, or programming task: Provide the 100% complete, fully implemented, working, bug-free, and production-ready source code.
+   - NEVER use placeholder comments like "// rest of code here", "// implement later", "// TODO", or partial snippets.
+   - Always write functional, modular, modern, and beautifully styled code.
+   - For web apps/sites/games, provide modern responsive UI with Tailwind CSS or clean embedded CSS styling, beautiful color schemes, smooth interactive animations, and robust event handling.
+   - Structure each file with explicit bracketed filenames in the code block fence so the built-in system automatically extracts them for 1-click ZIP download and Instant Live Launch:
+     \`\`\`html [index.html]
+     <!DOCTYPE html>
+     <html lang="en">
+     ...
+     </html>
+     \`\`\`
+     \`\`\`css [style.css]
+     ...
+     \`\`\`
+     \`\`\`javascript [script.js]
+     ...
+     \`\`\`
+     \`\`\`python [app.py]
+     ...
+     \`\`\`
+     \`\`\`markdown [README.md]
+     ...
+     \`\`\`
+2. Conversational Versatility:
+   - For non-coding questions (essays, daily inquiries, logic puzzles, Urdu/English letters, translation, business strategy): Deliver structured, clear Markdown with headings, bullet points, and insightful depth without unwanted code.
+3. Language Directives:
+   - ${langNote}
+4. Quality & Tone:
+   - Provide comprehensive explanations of how the code works, how to run it, and what key features were built. Be encouraging, highly capable, and authoritative.`;
 
     // Format messages for Gemini API
     const contents: any[] = [];
@@ -205,9 +255,9 @@ ${customSystemInstruction ? `User Custom Instructions: ${customSystemInstruction
       responseText = await generateWithResilientModels(ai, {
         contents,
         systemInstruction,
-        temperature: mode === "deep_thinking" ? 0.4 : 0.7,
+        temperature: mode === "deep_thinking" ? 0.3 : isCodingRequest ? 0.4 : 0.7,
         tools: mode === "web_search" ? [{ googleSearch: {} }] : undefined,
-        timeoutMs: 20000,
+        timeoutMs: isCodingRequest ? 45000 : 25000,
       });
     }
 
