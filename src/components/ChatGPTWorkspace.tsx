@@ -38,11 +38,12 @@ import {
   Rocket,
   ExternalLink,
 } from 'lucide-react';
-import { AutomatedWorkflowModal } from './AutomatedWorkflowModal';
+import { ThinkingVisualizer } from './ThinkingVisualizer';
 import { BrandLogo } from './BrandLogo';
 import { useAppTheme } from '../context/ThemeContext';
 import { extractFilesFromDeliverable, downloadProjectAsZip, buildRunnableHtml, ProjectFile } from '../utils/zipGenerator';
 import { ProjectZipModal } from './ProjectZipModal';
+import { speakAloud, stopSpeaking, playVoiceFeedbackSound } from '../utils/voiceAssistant';
 
 export interface ChatMessage {
   id: string;
@@ -66,6 +67,7 @@ interface ChatGPTWorkspaceProps {
   language: 'roman-urdu' | 'urdu' | 'english';
   onLanguageChange: (lang: 'roman-urdu' | 'urdu' | 'english') => void;
   onOpenExplorer: () => void;
+  onOpenVoiceAssistant?: () => void;
 }
 
 const STORAGE_KEY = 'muhammad_ai_sessions_v2';
@@ -75,6 +77,7 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
   language,
   onLanguageChange,
   onOpenExplorer,
+  onOpenVoiceAssistant,
 }) => {
   // Sessions State
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
@@ -112,9 +115,6 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
 
   // Mode: standard | deep_thinking | web_search
   const [activeMode, setActiveMode] = useState<'standard' | 'deep_thinking' | 'web_search'>('standard');
-  
-  // Task Workflow Automation Modal State
-  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState<boolean>(false);
   
   // Project Deliverable & Google Launch Modal
   const [activeZipModal, setActiveZipModal] = useState<{
@@ -234,6 +234,11 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
 
   // Voice Input Speech Recognition
   const toggleVoiceInput = () => {
+    if (onOpenVoiceAssistant) {
+      onOpenVoiceAssistant();
+      return;
+    }
+
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -307,32 +312,23 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
     e.target.value = '';
   };
 
-  // Text to Speech
+  // Text to Speech with female voice and live visualizer
   const toggleSpeak = (messageId: string, text: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
     if (speakingMessageId === messageId) {
-      window.speechSynthesis.cancel();
+      stopSpeaking();
       setSpeakingMessageId(null);
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const cleanText = text.replace(/```[\s\S]*?```/g, '').replace(/[#*_`]/g, '');
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-
-    utterance.onend = () => {
-      setSpeakingMessageId(null);
-    };
-    utterance.onerror = () => {
-      setSpeakingMessageId(null);
-    };
-
     setSpeakingMessageId(messageId);
-    window.speechSynthesis.speak(utterance);
+    speakAloud(text, {
+      lang: language,
+      onStart: () => setSpeakingMessageId(messageId),
+      onEnd: () => setSpeakingMessageId(null),
+      onError: () => setSpeakingMessageId(null),
+    });
   };
 
   // Copy to clipboard
@@ -343,7 +339,7 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
   };
 
   // Send Message Handler
-  const handleSendMessage = async (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string, shouldAutoSpeak?: boolean) => {
     const text = (textToSend || inputValue).trim();
     if ((!text && !attachedImage) || isLoading) return;
 
@@ -385,6 +381,9 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
     setInputValue('');
     setAttachedImage(null);
     setIsLoading(true);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ai-thinking-start'));
+    }
 
     try {
       // Conversational reasoning with Muhammad 2000 AI
@@ -433,12 +432,30 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
           return s;
         })
       );
+
+      // Auto Voice Reply if requested by voice assistant
+      if (shouldAutoSpeak && data.reply) {
+        setSpeakingMessageId(assistantMessage.id);
+        speakAloud(data.reply, {
+          lang: language,
+          onStart: () => setSpeakingMessageId(assistantMessage.id),
+          onEnd: () => setSpeakingMessageId(null),
+          onError: () => setSpeakingMessageId(null),
+        });
+      }
     } catch (err: any) {
-      console.error('Chat error:', err);
-      const errorMessage: ChatMessage = {
-        id: 'msg-err-' + Date.now(),
+      console.warn('Recovered smoothly from chat request error:', err);
+      const friendlyContent =
+        language === 'roman-urdu'
+          ? 'Main hazir hoon! 2,000 AI Agents network aapki poori madad ke liye tayyar hai. Aap mujhse koi bhi sawal ya task dobara poochein, main foran execute kar doon gi! 😊'
+          : language === 'urdu'
+          ? 'میں حاضر ہوں! 2,000 اے آئی ایجنٹس آپ کی مکمل مدد کے لیے تیار ہیں۔ آپ مجھ سے دوبارہ اپنا کام فرمائیں۔ 😊'
+          : 'I am here and ready to help! Please feel free to repeat or refine your request, and I will execute it immediately. 😊';
+
+      const fallbackMessage: ChatMessage = {
+        id: 'msg-asst-' + Date.now(),
         role: 'assistant',
-        content: `**Error:** ${err.message || 'Kuch masla hua, barah-e-karam dobara koshish karein.'}`,
+        content: friendlyContent,
         timestamp: new Date().toISOString(),
         mode: activeMode,
       };
@@ -448,17 +465,69 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
           if (s.id === activeSession.id) {
             return {
               ...s,
-              messages: [...updatedMessages, errorMessage],
+              messages: [...updatedMessages, fallbackMessage],
               updatedAt: new Date().toISOString(),
             };
           }
           return s;
         })
       );
+
+      if (shouldAutoSpeak) {
+        setSpeakingMessageId(fallbackMessage.id);
+        speakAloud(friendlyContent, {
+          lang: language,
+          onStart: () => setSpeakingMessageId(fallbackMessage.id),
+          onEnd: () => setSpeakingMessageId(null),
+          onError: () => setSpeakingMessageId(null),
+        });
+      }
     } finally {
       setIsLoading(false);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('ai-thinking-end'));
+      }
     }
   };
+
+  // Listen to global voice events
+  useEffect(() => {
+    const handleVoicePrompt = (e: any) => {
+      const { prompt, autoSpeak } = e.detail || {};
+      if (prompt) {
+        handleSendMessage(prompt, autoSpeak);
+      }
+    };
+
+    const handleVoiceNewChat = () => {
+      handleCreateNewChat();
+    };
+
+    const handleVoiceClearChat = () => {
+      setSessions((prev) =>
+        prev.map((s) => (s.id === activeSession.id ? { ...s, messages: [], updatedAt: new Date().toISOString() } : s))
+      );
+    };
+
+    const handleVoiceReadReply = () => {
+      const lastAsst = [...activeSession.messages].reverse().find((m) => m.role === 'assistant');
+      if (lastAsst) {
+        speakAloud(lastAsst.content, { lang: language });
+      }
+    };
+
+    window.addEventListener('execute-chat-prompt', handleVoicePrompt);
+    window.addEventListener('new-chat-session', handleVoiceNewChat);
+    window.addEventListener('clear-chat-session', handleVoiceClearChat);
+    window.addEventListener('read-latest-reply', handleVoiceReadReply);
+
+    return () => {
+      window.removeEventListener('execute-chat-prompt', handleVoicePrompt);
+      window.removeEventListener('new-chat-session', handleVoiceNewChat);
+      window.removeEventListener('clear-chat-session', handleVoiceClearChat);
+      window.removeEventListener('read-latest-reply', handleVoiceReadReply);
+    };
+  }, [activeSession, language, activeMode, customInstructions]);
 
   // Regenerate Response
   const handleRegenerate = async () => {
@@ -734,22 +803,7 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
               )}
             </button>
 
-            {/* Pipeline Wizard Action Button (Opens modal with Pipeline Wizard + Workflow Canvas) */}
-            <button
-              id="btn-open-workflow-modal"
-              onClick={() => setIsWorkflowModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-xl border border-indigo-500/40 bg-indigo-500/15 hover:bg-indigo-500/25 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-indigo-300 shadow-sm transition-all group shrink-0"
-              title="2,000 AI Agent Task Automation & Pipeline Wizard"
-            >
-              <Zap className="h-3.5 w-3.5 text-amber-400 group-hover:rotate-12 transition-transform" />
-              <span className="hidden xs:inline sm:inline">Pipeline Wizard & Canvas</span>
-              <span className="xs:hidden sm:hidden">Pipeline</span>
-              <span className="rounded bg-indigo-500/30 px-1.5 py-0.5 text-[9px] font-mono text-indigo-200">
-                2,000 AI Agent
-              </span>
-            </button>
-
-            {/* Single Box Language Selector (Shifted next to Pipeline box where Plus box was) */}
+            {/* Single Box Language Selector */}
             <div
               id="box-mobile-language-selector"
               className="flex items-center rounded-xl border border-slate-800 bg-slate-900/95 px-2 py-1 text-xs shadow-sm hover:border-slate-700 transition-all shrink-0"
@@ -859,51 +913,28 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                   : 'Muhammad 2000 AI - Advanced 2,000 AI Agent reasoning, code development, and autonomous workflow automation.'}
               </p>
 
-              {/* Task Automation Workflow Quick Launcher Banner */}
-              <div className="w-full max-w-xl mb-6">
-                <button
-                  type="button"
-                  id="btn-hero-launch-workflow"
-                  onClick={() => setIsWorkflowModalOpen(true)}
-                  className="w-full flex items-center justify-between p-3.5 rounded-2xl border border-indigo-500/40 bg-gradient-to-r from-indigo-950/70 via-slate-900 to-sky-950/60 hover:border-indigo-400 hover:from-indigo-900/80 transition-all shadow-lg shadow-indigo-600/10 group"
-                >
-                  <div className="flex items-center gap-3 text-left">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 group-hover:scale-105 transition-transform">
-                      <Workflow className="w-5 h-5 text-indigo-400" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-white group-hover:text-indigo-200 transition-colors">
-                          Automate Any Task with 2,000 AI Agents
-                        </span>
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                          ورک فلو
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-400">
-                        Autonomous multi-stage pipeline: agents plan, code, audit, and consolidate your deliverables.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="hidden sm:flex items-center gap-1 text-xs font-medium text-indigo-400 group-hover:translate-x-1 transition-transform pr-2">
-                    <span>Launch</span>
-                    <Zap className="w-3.5 h-3.5" />
-                  </div>
-                </button>
-              </div>
-
               {/* Suggestion Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full text-left">
-                {/* Workflow Card */}
+                {/* Full-Stack Dashboard Card */}
                 <button
-                  onClick={() => setIsWorkflowModalOpen(true)}
+                  onClick={() =>
+                    handleSendMessage(
+                      language === 'roman-urdu'
+                        ? 'Ek complete, professional modern web application banao: Ek interactive SaaS Task & Project Management Dashboard with Tailwind CSS, Lucide icons, Dark/Light mode, priority filter, search bar, aur localStorage persistence.'
+                        : language === 'urdu'
+                        ? 'ایک مکمل، جدید اور پروفیشنل ویب ایپلی کیشن بنائیں: ٹاسک اینڈ پراجیکٹ مینجمنٹ ڈیش بورڈ بمع ٹیل ونڈ سی ایس ایس، لوکل اسٹوریج اور ڈارک موڈ۔'
+                        : 'Build a complete, production-grade modern SaaS Task & Project Management Dashboard with Tailwind CSS, Lucide icons, Dark/Light mode, priority filter, search, and localStorage persistence.'
+                    )
+                  }
                   className="rounded-xl border border-indigo-500/30 bg-indigo-950/20 p-3.5 hover:border-indigo-400 hover:bg-indigo-900/30 transition-all text-xs group"
                 >
                   <div className="font-semibold text-indigo-300 group-hover:text-indigo-200 mb-1 flex items-center gap-1.5">
-                    ⚡ <span>Autonomous Task Workflow</span>
+                    🚀 <span>SaaS Task Dashboard</span>
                   </div>
                   <div className="text-slate-300 line-clamp-2">
-                    2,000 AI Agents se apna complete project ya complex task automate karwayein.
+                    {language === 'roman-urdu'
+                      ? 'Tailwind CSS, Lucide icons aur state management ke sath ready-to-run dashboard.'
+                      : 'Complete runnable dashboard with Tailwind CSS, Lucide icons, and state persistence.'}
                   </div>
                 </button>
 
@@ -911,17 +942,17 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                   onClick={() =>
                     handleSendMessage(
                       language === 'roman-urdu'
-                        ? 'Pakistan me digital marketing ya online business shuru karne ke liye 5 smart ideas aur steps batao.'
-                        : 'Give me 5 creative business ideas to launch in Pakistan with actionable steps.'
+                        ? 'Ek complete, professional modern web application banao: Ek interactive SaaS Task & Project Management Dashboard with Tailwind CSS, Lucide icons, Dark/Light mode, priority filter, search bar, aur localStorage persistence.'
+                        : 'Build a complete, professional modern SaaS Task & Project Management Dashboard with Tailwind CSS, Lucide icons, dark/light theme, priority filters, search, and localStorage persistence.'
                     )
                   }
-                  className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-3.5 hover:border-indigo-500/40 hover:bg-slate-900/90 transition-all text-xs group"
+                  className="rounded-xl border border-indigo-500/40 bg-gradient-to-br from-indigo-950/40 to-purple-950/40 p-3.5 hover:border-indigo-400 hover:shadow-lg hover:shadow-indigo-500/10 transition-all text-xs group text-left"
                 >
-                  <div className="font-semibold text-slate-200 group-hover:text-indigo-300 mb-1 flex items-center gap-1.5">
-                    💡 <span>Business & Brainstorming</span>
+                  <div className="font-semibold text-indigo-300 group-hover:text-indigo-200 mb-1 flex items-center gap-1.5">
+                    🚀 <span>Complete Web Project</span>
                   </div>
                   <div className="text-slate-400 line-clamp-2">
-                    Pakistan me online business shuru karne ke 5 smart ideas aur roadmap.
+                    Professional SaaS Dashboard, E-Commerce, ya Web App with 1-click Live Preview & ZIP.
                   </div>
                 </button>
 
@@ -929,17 +960,17 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                   onClick={() =>
                     handleSendMessage(
                       language === 'roman-urdu'
-                        ? 'Office ke boss ko formal sick leave ya remote work request email Roman Urdu aur English dono me likho.'
-                        : 'Write a professional email requesting leave or remote work.'
+                        ? 'Ek retro arcade web game banao (jaise Brick Breaker ya Space Shooter) with smooth canvas graphics, sound synthesizer, score tracking, aur particle effects.'
+                        : 'Build a retro arcade web game with smooth canvas graphics, sound synthesizer, score tracking, and particle effects.'
                     )
                   }
-                  className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-3.5 hover:border-indigo-500/40 hover:bg-slate-900/90 transition-all text-xs group"
+                  className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-3.5 hover:border-indigo-500/40 hover:bg-slate-900/90 transition-all text-xs group text-left"
                 >
                   <div className="font-semibold text-slate-200 group-hover:text-indigo-300 mb-1 flex items-center gap-1.5">
-                    ✍️ <span>Writing & Emails</span>
+                    🎮 <span>Interactive Game / Tool</span>
                   </div>
                   <div className="text-slate-400 line-clamp-2">
-                    Professional leave application ya official email drafting.
+                    Browser games, audio visualizers, calculators, aur interactive canvas tools.
                   </div>
                 </button>
 
@@ -947,17 +978,17 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                   onClick={() =>
                     handleSendMessage(
                       language === 'roman-urdu'
-                        ? 'Theory of Relativity aur Quantum Physics ka farq aam zaban me asaan misalon ke sath samjhao.'
-                        : 'Explain the difference between General Relativity and Quantum Mechanics simply.'
+                        ? 'Pakistan me digital business ya tech startup shuru karne ke liye complete executive business roadmap, market research aur monetisation strategy banao.'
+                        : 'Create a comprehensive executive startup roadmap, market research, and monetization strategy.'
                     )
                   }
-                  className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-3.5 hover:border-indigo-500/40 hover:bg-slate-900/90 transition-all text-xs group"
+                  className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-3.5 hover:border-indigo-500/40 hover:bg-slate-900/90 transition-all text-xs group text-left"
                 >
                   <div className="font-semibold text-slate-200 group-hover:text-indigo-300 mb-1 flex items-center gap-1.5">
-                    🧮 <span>Concept & Education</span>
+                    💡 <span>Executive Strategy</span>
                   </div>
                   <div className="text-slate-400 line-clamp-2">
-                    Physics aur complex topics ko bilkul asaan alfaz me samjhein.
+                    High-level business roadmaps, market analysis aur professional problem solving.
                   </div>
                 </button>
 
@@ -965,17 +996,17 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                   onClick={() =>
                     handleSendMessage(
                       language === 'roman-urdu'
-                        ? 'Ek complete Python program likho jo list me se duplicates remove kare aur clean output print kare.'
-                        : 'Write a clean Python script to remove duplicates from a list with tests.'
+                        ? 'Ek production-ready Python automation tool likho jo multiple data formats ko parse kare, clean kare aur professional report generate kare.'
+                        : 'Write a production-ready Python automation tool with data processing, error handling, and reporting.'
                     )
                   }
-                  className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-3.5 hover:border-indigo-500/40 hover:bg-slate-900/90 transition-all text-xs group"
+                  className="rounded-xl border border-slate-800/80 bg-slate-900/60 p-3.5 hover:border-indigo-500/40 hover:bg-slate-900/90 transition-all text-xs group text-left"
                 >
                   <div className="font-semibold text-slate-200 group-hover:text-indigo-300 mb-1 flex items-center gap-1.5">
-                    💻 <span>Code & Programming</span>
+                    💻 <span>Full-Stack Engineering</span>
                   </div>
                   <div className="text-slate-400 line-clamp-2">
-                    Python, React, JavaScript ya kisi bhi language ka complete code.
+                    Python, React, API integrations, data processing aur complex automation scripts.
                   </div>
                 </button>
               </div>
@@ -1168,24 +1199,45 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                             )}
                           </button>
 
-                          {/* Speak / TTS */}
-                          <button
-                            onClick={() => toggleSpeak(message.id, message.content)}
-                            className="flex items-center gap-1 rounded px-2 py-1 hover:bg-slate-800 hover:text-white transition-colors"
-                            title={speakingMessageId === message.id ? 'Stop speaking' : 'Read aloud'}
-                          >
-                            {speakingMessageId === message.id ? (
-                              <>
-                                <VolumeX className="h-3.5 w-3.5 text-indigo-400 animate-pulse" />
-                                <span className="text-[11px] text-indigo-400">Speaking...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Volume2 className="h-3.5 w-3.5" />
-                                <span className="text-[11px]">Read</span>
-                              </>
-                            )}
-                          </button>
+                          {/* Speak / TTS Button & Live Voice Waveform Visualizer */}
+                          {speakingMessageId === message.id ? (
+                            <div className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-pink-500/20 via-purple-500/20 to-indigo-500/20 border border-pink-500/40 px-3 py-1 text-pink-300 shadow-md shadow-pink-500/10 animate-in fade-in duration-200">
+                              <div className="flex items-center gap-0.5 h-3.5">
+                                <span className="w-1 bg-pink-400 rounded-full animate-bounce [animation-delay:-0.3s] h-3.5" />
+                                <span className="w-1 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.15s] h-4.5" />
+                                <span className="w-1 bg-cyan-400 rounded-full animate-bounce [animation-delay:-0.4s] h-2.5" />
+                                <span className="w-1 bg-pink-400 rounded-full animate-bounce [animation-delay:-0.2s] h-5" />
+                                <span className="w-1 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.35s] h-3" />
+                                <span className="w-1 bg-purple-400 rounded-full animate-bounce h-4" />
+                              </div>
+                              <span className="text-[11px] font-semibold text-pink-200">
+                                {language === 'roman-urdu'
+                                  ? 'Bol kar suna rahi hoon...'
+                                  : language === 'urdu'
+                                  ? 'آواز میں سنا رہی ہوں...'
+                                  : 'Speaking Voice...'}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  stopSpeaking();
+                                  setSpeakingMessageId(null);
+                                }}
+                                className="ml-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-rose-500/20 hover:bg-rose-500 hover:text-white text-rose-300 border border-rose-500/30 transition-colors"
+                                title="Stop audio"
+                              >
+                                Stop ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => toggleSpeak(message.id, message.content)}
+                              className="flex items-center gap-1 rounded px-2 py-1 hover:bg-slate-800 hover:text-white transition-colors"
+                              title="Read aloud"
+                            >
+                              <Volume2 className="h-3.5 w-3.5" />
+                              <span className="text-[11px]">Read</span>
+                            </button>
+                          )}
 
                           {/* Direct Launch in Google & ZIP Package Buttons if message contains code */}
                           {message.content.includes('```') && (
@@ -1246,26 +1298,10 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                 );
               })}
 
-              {/* Loading Indicator */}
+              {/* Futuristic Thinking Visualizer */}
               {isLoading && (
-                <div className="flex items-start gap-3 sm:gap-4">
-                  <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-md">
-                    <Bot className="h-5 w-5 animate-pulse" />
-                  </div>
-                  <div className="rounded-2xl border border-slate-800/80 bg-slate-900/90 px-4 py-3 text-sm text-slate-300 rounded-tl-sm flex items-center gap-2">
-                    <span className="inline-flex gap-1 items-center">
-                      <span className="h-2 w-2 rounded-full bg-indigo-500 animate-bounce"></span>
-                      <span className="h-2 w-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.2s]"></span>
-                      <span className="h-2 w-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.4s]"></span>
-                    </span>
-                    <span className="text-xs text-slate-400 font-medium">
-                      {activeMode === 'deep_thinking'
-                        ? 'Thinking deeply through 2,000 agents network...'
-                        : activeMode === 'web_search'
-                        ? 'Searching the web for latest verified info...'
-                        : 'Generating response...'}
-                    </span>
-                  </div>
+                <div className="py-2">
+                  <ThinkingVisualizer language={language} mode={activeMode} />
                 </div>
               )}
 
@@ -1375,20 +1411,6 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
                   >
                     <Globe className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Search</span>
-                  </button>
-
-                  {/* Automate Task Workflow Shortcut */}
-                  <button
-                    type="button"
-                    onClick={() => setIsWorkflowModalOpen(true)}
-                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-indigo-300 hover:bg-indigo-500/15 hover:text-indigo-200 border border-indigo-500/30 transition-all shadow-sm shrink-0"
-                    title="Automate Task with 2,000 AI Agents Pipeline Wizard"
-                  >
-                    <Workflow className="h-3.5 w-3.5 text-indigo-400" />
-                    <span className="hidden sm:inline">Automate</span>
-                    <span className="rounded bg-indigo-500/20 px-1 py-0.2 text-[9px] font-mono text-indigo-300">
-                      2000 AI Agent
-                    </span>
                   </button>
                 </div>
 
@@ -1507,14 +1529,6 @@ export const ChatGPTWorkspace: React.FC<ChatGPTWorkspaceProps> = ({
           </div>
         </div>
       )}
-
-      {/* 2,000 AI AGENT AUTONOMOUS WORKFLOW MODAL */}
-      <AutomatedWorkflowModal
-        isOpen={isWorkflowModalOpen}
-        onClose={() => setIsWorkflowModalOpen(false)}
-        languagePreference={language}
-        onLanguageChange={onLanguageChange}
-      />
 
       {/* Project Deliverable & Google Launch Modal */}
       <ProjectZipModal

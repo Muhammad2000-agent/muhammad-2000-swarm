@@ -40,8 +40,8 @@ const SAMPLE_TASKS = {
       prompt: 'Ek modern dark-theme developer portfolio website pura code karke do with three.js background, project showcase, contact form, aur responsive styles in index.html, style.css, script.js.',
     },
     {
-      label: '⚡ Automation Script Pipeline + Direct ZIP',
-      prompt: 'Ek high-performance file processing aur automation script pipeline pura implement karo with package.json, test cases, and README.',
+      label: '⚡ Automation Script Suite + Direct ZIP',
+      prompt: 'Ek high-performance file processing aur automation script suite pura implement karo with package.json, test cases, and README.',
     },
   ],
   urdu: [
@@ -158,23 +158,28 @@ export const HiveMindWorkspace: React.FC<HiveMindWorkspaceProps> = ({
     }
     setIsExecuting(true);
 
-    // Subtle, clean phase updates while server computes
+    // Dynamic multi-agent phase updates while server computes
     const phases = [
       language === 'roman-urdu'
-        ? 'Task analyze ho raha hai...'
+        ? '2,000 Agents fleet se dynamic multi-agent squad mobilize ho raha hai...'
         : language === 'urdu'
-        ? 'کام کا جائزہ لیا جا رہا ہے...'
-        : 'Analyzing request & requirements...',
+        ? '2,000 ایجنٹس سے ماہرین کا اسکواڈ تشکیل دیا جا رہا ہے...'
+        : 'Mobilizing specialized multi-agent engineering squad...',
       language === 'roman-urdu'
-        ? 'Autonomous tools aur intelligence process ho rahi hai...'
+        ? 'Systems Architect & UI/UX Leads requirements finalize kar rahe hain...'
         : language === 'urdu'
-        ? 'ٹولز اور انٹیلی جنس پروسیس ہو رہی ہے...'
-        : 'Executing autonomous tools & intelligence...',
+        ? 'آرکیٹیکٹ اور یو آئی لیڈز پراجیکٹ کا خاکہ تیار کر رہے ہیں...'
+        : 'Systems Architect & UI/UX Leads formulating specifications...',
       language === 'roman-urdu'
-        ? 'Final response synthesize ho rahi hai...'
+        ? 'Full-stack code, logic aur state management synthesize ho rahi hai...'
         : language === 'urdu'
-        ? 'مکمل جواب تیار کیا جا رہا ہے...'
-        : 'Synthesizing complete solution...',
+        ? 'مکمل کوڈ، لاجک اور اسٹیٹ مینیجمنٹ تیار ہو رہی ہے...'
+        : 'Synthesizing complete full-stack code & state persistence...',
+      language === 'roman-urdu'
+        ? 'Cross-agent QA & 1-Click ZIP Packaging engine verify kar raha hai...'
+        : language === 'urdu'
+        ? 'کوالٹی ایشورنس اور فوری زپ پیکیجنگ انجن تصدیق کر رہا ہے...'
+        : 'Packaging verified deliverable for 1-Click launch & direct ZIP...',
     ];
 
     let phaseIndex = 0;

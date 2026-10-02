@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, MessageSquareCode, LayoutGrid } from 'lucide-react';
+import { Sparkles, MessageSquareCode, LayoutGrid, Crown } from 'lucide-react';
 import { useAppTheme } from '../context/ThemeContext';
 
 interface MobileBottomNavProps {
@@ -31,9 +31,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     },
     {
       id: 'directory' as const,
-      label: language === 'roman-urdu' ? '2,000 AI Agent' : language === 'urdu' ? '۲۰۰۰ ایجنٹ' : '2,000 AI Agent',
-      icon: LayoutGrid,
-      description: 'Full Agent Directory',
+      label: language === 'roman-urdu' ? 'Boss Office' : language === 'urdu' ? 'آفس' : 'AI Office',
+      icon: Crown,
+      description: '2,000 Agents Autonomous Office',
     },
   ];
 

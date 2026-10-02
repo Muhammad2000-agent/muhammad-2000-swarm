@@ -10,10 +10,12 @@ import { SmartAutoDispatcher } from './components/SmartAutoDispatcher';
 import { TaskHistoryDrawer } from './components/TaskHistoryDrawer';
 import { AgentCustomizerModal } from './components/AgentCustomizerModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { VoiceAssistantHub } from './components/VoiceAssistantHub';
+import { FuturisticAgentOffice } from './components/FuturisticAgentOffice';
 import { Agent, TaskExecution } from './types';
 import { searchAgentFleet, getAgentByNumber } from './data/agentFleet';
 import { loadTaskHistory, saveTaskHistory } from './utils/storage';
-import { Search, Sparkles, Layers, X, ChevronDown, Check, ArrowRight } from 'lucide-react';
+import { Search, Sparkles, Layers, X, ChevronDown, Check, ArrowRight, Mic } from 'lucide-react';
 import { ThemeProvider, useAppTheme } from './context/ThemeContext';
 
 function AppContent() {
@@ -36,6 +38,57 @@ function AppContent() {
   const [isSwarmModalOpen, setIsSwarmModalOpen] = useState<boolean>(false);
   const [isAutoDispatcherOpen, setIsAutoDispatcherOpen] = useState<boolean>(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
+  const [isVoiceAssistantOpen, setIsVoiceAssistantOpen] = useState<boolean>(false);
+  const [isAiSpeaking, setIsAiSpeaking] = useState<boolean>(false);
+  const [isFloatingVoiceVisible, setIsFloatingVoiceVisible] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('hide_floating_voice_orb_v1') !== 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  // Listen to TTS speaking events for live global visualizer
+  useEffect(() => {
+    const handleStart = () => setIsAiSpeaking(true);
+    const handleEnd = () => setIsAiSpeaking(false);
+    window.addEventListener('ai-speaking-start', handleStart);
+    window.addEventListener('ai-speaking-end', handleEnd);
+    return () => {
+      window.removeEventListener('ai-speaking-start', handleStart);
+      window.removeEventListener('ai-speaking-end', handleEnd);
+    };
+  }, []);
+
+  // Voice execution handlers
+  const handleExecutePromptInChat = (prompt: string, options?: { autoSpeak?: boolean }) => {
+    setActiveTab('chat');
+    setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent('execute-chat-prompt', {
+          detail: { prompt, autoSpeak: options?.autoSpeak },
+        })
+      );
+    }, 120);
+  };
+
+  const handleNewChatSession = () => {
+    setActiveTab('chat');
+    window.dispatchEvent(new CustomEvent('new-chat-session'));
+  };
+
+  const handleClearCurrentChat = () => {
+    window.dispatchEvent(new CustomEvent('clear-chat-session'));
+  };
+
+  const handleReadLatestReply = () => {
+    window.dispatchEvent(new CustomEvent('read-latest-reply'));
+  };
+
+  const handleSearchAgentsFromVoice = (query: string) => {
+    setSearchQuery(query);
+    setActiveTab('directory');
+  };
 
   // Sync task history to localStorage
   useEffect(() => {
@@ -102,6 +155,8 @@ function AppContent() {
         onOpenAutoMatch={() => setIsAutoDispatcherOpen(true)}
         tasksCount={taskHistory.length}
         onOpenHistory={() => setIsHistoryOpen(true)}
+        isVoiceAssistantOpen={isVoiceAssistantOpen}
+        onToggleVoiceAssistant={() => setIsVoiceAssistantOpen((prev) => !prev)}
       />
 
       {/* Main Content Area */}
@@ -111,6 +166,7 @@ function AppContent() {
             language={language}
             onLanguageChange={setLanguage}
             onOpenExplorer={() => setActiveTab('directory')}
+            onOpenVoiceAssistant={() => setIsVoiceAssistantOpen(true)}
           />
         </main>
       ) : activeTab === 'workspace' ? (
@@ -118,191 +174,17 @@ function AppContent() {
           <HiveMindWorkspace language={language} />
         </main>
       ) : (
-        <div className="flex-1 flex flex-col">
-          {/* Domain Navigator Bar */}
-          <DomainNavigator
-            selectedDomainId={selectedDomainId}
-            onSelectDomain={setSelectedDomainId}
+        <main className="flex-1 flex flex-col w-full">
+          <FuturisticAgentOffice
             language={language}
+            swarmAgents={swarmAgents}
+            onToggleSwarm={handleToggleSwarm}
+            onAssignTask={setSelectedAgentForTask}
+            onCustomizeAgent={setCustomizingAgent}
+            onOpenAutoMatch={() => setIsAutoDispatcherOpen(true)}
+            onOpenSwarmModal={() => setIsSwarmModalOpen(true)}
           />
-
-          <main className="mx-auto max-w-7xl w-full flex-1 px-4 py-5 sm:px-6 pb-28 md:pb-24">
-            {/* Search, Filter Bar & Quick Stats */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-6">
-              {/* Search Bar */}
-              <div className="relative flex-1 max-w-lg">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={
-                    language === 'roman-urdu'
-                      ? 'Kisi bhi agent ka naam, #ID (e.g. 42), skill ya keyword search karein...'
-                      : language === 'urdu'
-                      ? 'کسی بھی ایجنٹ کا نام، نمبر یا مہارت تلاش کریں...'
-                      : 'Search any agent by name, #ID (e.g. 42), skill, or keyword...'
-                  }
-                  className="w-full rounded-xl border border-slate-800 bg-slate-900/80 py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all shadow-sm"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-
-              {/* Status and Action Buttons */}
-              <div className="flex items-center gap-2 justify-between sm:justify-end">
-                <div className="text-xs text-slate-400 font-mono">
-                  {language === 'roman-urdu' ? (
-                    <>
-                      Showing <span className="text-indigo-400 font-bold">{displayedAgents.length}</span> of{' '}
-                      <span className="text-slate-200">{filteredAgents.length}</span> agents
-                    </>
-                  ) : (
-                    <>
-                      Showing <span className="text-indigo-400 font-bold">{displayedAgents.length}</span> of{' '}
-                      <span className="text-slate-200">{filteredAgents.length}</span>
-                    </>
-                  )}
-                </div>
-
-                <button
-                  onClick={() => setIsAutoDispatcherOpen(true)}
-                  className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 transition-all shadow-sm"
-                >
-                  <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                  <span>
-                    {language === 'roman-urdu'
-                      ? 'Smart Auto-Dispatcher'
-                      : language === 'urdu'
-                      ? 'اسمارٹ آٹو ڈسپیچر'
-                      : 'Auto-Dispatcher'}
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* Empty State */}
-            {displayedAgents.length === 0 && (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center my-8">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-800 text-slate-400 mb-3">
-                  <Search className="h-6 w-6" />
-                </div>
-                <h3 className="text-base font-semibold text-slate-200">
-                  {language === 'roman-urdu' ? 'Koi agent nahi mila' : 'No agents match your query'}
-                </h3>
-                <p className="mt-1 text-xs text-slate-400 max-w-sm mx-auto">
-                  {language === 'roman-urdu'
-                    ? 'Search query badal kar dekhein ya "All 2000 Agents" par click karein.'
-                    : 'Try clearing the search query or selecting another domain.'}
-                </p>
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSelectedDomainId('all');
-                  }}
-                  className="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500"
-                >
-                  Reset Filters
-                </button>
-              </div>
-            )}
-
-            {/* Grid of Agents */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {displayedAgents.map((agent) => (
-                <AgentCard
-                  key={agent.id}
-                  agent={agent}
-                  onAssignTask={setSelectedAgentForTask}
-                  onToggleSwarm={handleToggleSwarm}
-                  onCustomize={setCustomizingAgent}
-                  isInSwarm={swarmAgents.some((a) => a.id === agent.id)}
-                  language={language}
-                />
-              ))}
-            </div>
-
-            {/* Load More Button */}
-            {displayedAgents.length < filteredAgents.length && (
-              <div className="mt-8 flex justify-center">
-                <button
-                  onClick={() => setVisibleLimit((prev) => prev + 36)}
-                  className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-5 py-2.5 text-xs font-medium text-slate-300 hover:border-slate-700 hover:bg-slate-800 transition-all shadow-md"
-                >
-                  <ChevronDown className="h-4 w-4" />
-                  <span>
-                    {language === 'roman-urdu'
-                      ? `Mazeed 36 Agents Load Karein (${filteredAgents.length - displayedAgents.length} Baqi)`
-                      : language === 'urdu'
-                      ? `مزید ایجنٹس لوڈ کریں (${filteredAgents.length - displayedAgents.length} باقی)`
-                      : `Load More (${filteredAgents.length - displayedAgents.length} remaining)`}
-                  </span>
-                </button>
-              </div>
-            )}
-          </main>
-
-          {/* Floating Swarm Drawer at bottom */}
-          {swarmAgents.length > 0 && (
-            <aside aria-label="Swarm Collaboration Controls" className="fixed bottom-0 left-0 right-0 z-30 border-t border-indigo-500/30 bg-slate-950/95 backdrop-blur-md p-3 shadow-2xl">
-              <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-2 sm:px-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-                    <Layers className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold text-white">
-                        Swarm Ready: {swarmAgents.length} Agents Selected
-                      </span>
-                      <span className="text-[11px] text-slate-400 hidden sm:inline">
-                        (Max 5)
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      {swarmAgents.map((a) => (
-                        <span
-                          key={a.id}
-                          className="inline-flex items-center gap-1 rounded bg-slate-800 px-2 py-0.5 text-[10px] font-mono text-indigo-300 border border-slate-700"
-                        >
-                          #{a.id}
-                          <button
-                            onClick={() => handleToggleSwarm(a)}
-                            className="text-slate-400 hover:text-rose-400 ml-0.5"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSwarmAgents([])}
-                    className="rounded-lg px-3 py-1.5 text-xs text-slate-400 hover:text-white transition-colors"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    onClick={() => setIsSwarmModalOpen(true)}
-                    className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition-all"
-                  >
-                    <span>Launch Swarm</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            </aside>
-          )}
-        </div>
+        </main>
       )}
 
       {/* Task Execution Modal */}
@@ -370,6 +252,103 @@ function AppContent() {
           onSaveCustomPrompt={handleSaveCustomPrompt}
           language={language}
         />
+      )}
+
+      {/* Global Interactive Voice Control Hub */}
+      <VoiceAssistantHub
+        isOpen={isVoiceAssistantOpen}
+        onClose={() => setIsVoiceAssistantOpen(false)}
+        language={language}
+        onLanguageChange={setLanguage}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onOpenAutoMatch={() => setIsAutoDispatcherOpen(true)}
+        onOpenSwarm={() => setIsSwarmModalOpen(true)}
+        onOpenHistory={() => setIsHistoryOpen(true)}
+        onSearchAgents={handleSearchAgentsFromVoice}
+        onExecutePromptInChat={handleExecutePromptInChat}
+        onNewChatSession={handleNewChatSession}
+        onClearCurrentChat={handleClearCurrentChat}
+        onReadLatestReply={handleReadLatestReply}
+      />
+
+      {/* Floating Quick Voice Control Orb / Trigger */}
+      {!isVoiceAssistantOpen && isFloatingVoiceVisible && (
+        <div className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-40 flex items-center gap-1.5 animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <button
+            type="button"
+            onClick={() => setIsVoiceAssistantOpen(true)}
+            className={`flex items-center gap-2 rounded-2xl p-3 md:px-4 md:py-2.5 text-white shadow-xl transition-all group border cursor-pointer ${
+              isAiSpeaking
+                ? 'bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 shadow-pink-600/50 ring-4 ring-pink-500/40 border-pink-400/50 animate-pulse'
+                : 'bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 shadow-indigo-600/40 hover:scale-105 active:scale-95 border-indigo-400/40'
+            }`}
+            title={
+              isAiSpeaking
+                ? 'Speaking live voice answer - Click to open / control'
+                : language === 'roman-urdu'
+                ? 'Voice Control: Kuch bhi bol kar kahein aur yeh karega'
+                : language === 'urdu'
+                ? 'آوازی کنٹرول: بول کر حکم دیں'
+                : 'Voice Control: Speak any task or command'
+            }
+          >
+            <div className="relative flex items-center justify-center">
+              {isAiSpeaking ? (
+                /* Dynamic dancing audio bars visualizer */
+                <div className="flex items-center gap-0.5 h-4 w-5 justify-center">
+                  <span className="w-1 bg-pink-200 rounded-full animate-bounce [animation-delay:-0.3s] h-3.5" />
+                  <span className="w-1 bg-cyan-200 rounded-full animate-bounce [animation-delay:-0.15s] h-4.5" />
+                  <span className="w-1 bg-purple-200 rounded-full animate-bounce [animation-delay:-0.4s] h-2.5" />
+                  <span className="w-1 bg-pink-200 rounded-full animate-bounce h-4" />
+                </div>
+              ) : (
+                <>
+                  <Mic className="h-5 w-5 animate-pulse text-white" />
+                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+                  </span>
+                </>
+              )}
+            </div>
+            <div className="hidden md:flex flex-col text-left">
+              <span className="text-xs font-bold leading-tight flex items-center gap-1">
+                <span>{isAiSpeaking ? 'Bol Rahi Hoon...' : 'Voice Control'}</span>
+                <Sparkles className="h-3 w-3 text-amber-300" />
+              </span>
+              <span className="text-[10px] text-indigo-200 leading-tight">
+                {isAiSpeaking
+                  ? 'Live Voice Active 🎙️'
+                  : language === 'roman-urdu'
+                  ? 'Bol kar command dein'
+                  : language === 'urdu'
+                  ? 'بول کر حکم دیں'
+                  : 'Speak to AI'}
+              </span>
+            </div>
+          </button>
+
+          {/* Dismiss button to remove floating widget completely */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsFloatingVoiceVisible(false);
+              try {
+                localStorage.setItem('hide_floating_voice_orb_v1', 'true');
+              } catch {}
+            }}
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900/90 text-slate-400 hover:text-white hover:bg-rose-600 transition-all border border-slate-700 shadow-lg cursor-pointer"
+            title={
+              language === 'roman-urdu'
+                ? 'Is floating button ko screen se chupayein / remove karein'
+                : 'Dismiss this floating button'
+            }
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
 
       {/* Mobile Navigation Bar */}

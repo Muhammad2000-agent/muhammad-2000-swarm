@@ -228,32 +228,53 @@ export async function downloadProjectAsZip(
  */
 export function buildRunnableHtml(files: ProjectFile[]): string | null {
   const htmlFile = files.find((f) => f.name.toLowerCase().endsWith('.html'));
-  const cssFile = files.find((f) => f.name.toLowerCase().endsWith('.css'));
-  const jsFile = files.find((f) => f.name.toLowerCase().endsWith('.js'));
+  const cssFiles = files.filter((f) => f.name.toLowerCase().endsWith('.css'));
+  const jsFiles = files.filter((f) => f.name.toLowerCase().endsWith('.js'));
 
   if (htmlFile) {
     let raw = htmlFile.content;
-    // Inject CSS if external file exists and not yet embedded
-    if (cssFile && !raw.includes(cssFile.content)) {
-      if (raw.includes('</head>')) {
-        raw = raw.replace('</head>', `<style>\n/* Inlined style.css */\n${cssFile.content}\n</style></head>`);
-      } else {
-        raw = `<style>\n${cssFile.content}\n</style>\n` + raw;
+
+    // Inject all CSS files if external and not yet embedded
+    if (cssFiles.length > 0) {
+      const combinedCss = cssFiles
+        .filter((cf) => !raw.includes(cf.content))
+        .map((cf) => `/* Inlined ${cf.name} */\n${cf.content}`)
+        .join('\n\n');
+
+      if (combinedCss.trim()) {
+        if (raw.includes('</head>')) {
+          raw = raw.replace('</head>', `<style>\n${combinedCss}\n</style></head>`);
+        } else {
+          raw = `<style>\n${combinedCss}\n</style>\n` + raw;
+        }
       }
     }
-    // Inject JS if external file exists and not yet embedded
-    if (jsFile && !raw.includes(jsFile.content)) {
-      if (raw.includes('</body>')) {
-        raw = raw.replace('</body>', `<script>\n/* Inlined script.js */\n${jsFile.content}\n</script></body>`);
-      } else {
-        raw = raw + `\n<script>\n${jsFile.content}\n</script>`;
+
+    // Inject all JS files if external and not yet embedded
+    if (jsFiles.length > 0) {
+      const combinedJs = jsFiles
+        .filter((jf) => !raw.includes(jf.content))
+        .map((jf) => `/* Inlined ${jf.name} */\n${jf.content}`)
+        .join('\n\n');
+
+      if (combinedJs.trim()) {
+        const scriptBlock = `<script>\n${combinedJs}\n// Auto-initialize icons if Lucide is loaded\nif (window.lucide && typeof window.lucide.createIcons === 'function') { try { window.lucide.createIcons(); } catch(e){} }\n</script>`;
+        if (raw.includes('</body>')) {
+          raw = raw.replace('</body>', `${scriptBlock}</body>`);
+        } else {
+          raw = raw + `\n${scriptBlock}`;
+        }
       }
     }
+
     return raw;
   }
 
-  // If there's JS or CSS without explicit HTML, build a clean HTML5 host wrapper
-  if (jsFile || cssFile) {
+  // If there's JS or CSS without explicit HTML, build a clean modern HTML5 host wrapper
+  if (jsFiles.length > 0 || cssFiles.length > 0) {
+    const combinedCss = cssFiles.map((c) => c.content).join('\n\n');
+    const combinedJs = jsFiles.map((j) => j.content).join('\n\n');
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -261,26 +282,28 @@ export function buildRunnableHtml(files: ProjectFile[]): string | null {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Muhammad 2000 AI - Live App Launch</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
   <style>
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    ${cssFile ? cssFile.content : ''}
+    body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    ${combinedCss}
   </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen p-6">
-  <div id="root" class="max-w-4xl mx-auto"></div>
-  <div id="app" class="max-w-4xl mx-auto"></div>
-  ${
-    jsFile
-      ? `<script>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-4 md:p-8">
+  <div id="root" class="max-w-5xl mx-auto"></div>
+  <div id="app" class="max-w-5xl mx-auto"></div>
+  <script>
 try {
-  ${jsFile.content}
+  ${combinedJs}
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    window.lucide.createIcons();
+  }
 } catch (err) {
   console.error("Execution error:", err);
-  document.body.innerHTML += '<div style="background:#450a0a;color:#fca5a5;padding:12px;margin:16px auto;max-width:600px;border-radius:8px;font-family:monospace;"><strong>Runtime Error:</strong> ' + err.message + '</div>';
+  document.body.innerHTML += '<div style="background:#450a0a;color:#fca5a5;padding:16px;margin:24px auto;max-width:650px;border-radius:12px;border:1px solid #dc2626;font-family:monospace;"><strong>Runtime Error:</strong> ' + err.message + '</div>';
 }
-</script>`
-      : ''
-  }
+  </script>
 </body>
 </html>`;
   }

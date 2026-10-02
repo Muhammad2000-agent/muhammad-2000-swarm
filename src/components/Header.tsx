@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, Sparkles, Layers, History, LayoutGrid, MessageSquareCode, Palette, Check } from 'lucide-react';
+import { Bot, Sparkles, Layers, History, LayoutGrid, MessageSquareCode, Palette, Check, Mic, Crown } from 'lucide-react';
 import { BrandLogo } from './BrandLogo';
 import { useAppTheme, THEMES, AppTheme } from '../context/ThemeContext';
 import { ThemeToggle } from './ThemeToggle';
@@ -14,6 +14,8 @@ interface HeaderProps {
   onOpenAutoMatch: () => void;
   tasksCount: number;
   onOpenHistory: () => void;
+  isVoiceAssistantOpen?: boolean;
+  onToggleVoiceAssistant?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,6 +28,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAutoMatch,
   tasksCount,
   onOpenHistory,
+  isVoiceAssistantOpen,
+  onToggleVoiceAssistant,
 }) => {
   const { currentTheme, themeConfig, setTheme, mode } = useAppTheme();
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
@@ -71,8 +75,8 @@ export const Header: React.FC<HeaderProps> = ({
                 : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <LayoutGrid className="h-3.5 w-3.5" />
-            <span>2,000 AI Agent</span>
+            <Crown className="h-3.5 w-3.5 text-amber-400" />
+            <span>2,000 Agents Office</span>
           </button>
         </div>
 
@@ -149,6 +153,34 @@ export const Header: React.FC<HeaderProps> = ({
               </>
             )}
           </div>
+
+          {/* Voice Control Assistant Trigger */}
+          {onToggleVoiceAssistant && (
+            <button
+              onClick={onToggleVoiceAssistant}
+              className={`flex items-center gap-1.5 rounded-lg border px-2 sm:px-2.5 py-1.5 text-xs font-semibold transition-all ${
+                isVoiceAssistantOpen
+                  ? 'border-rose-500/60 bg-rose-500/20 text-rose-300 ring-2 ring-rose-500/40 animate-pulse'
+                  : isLight
+                  ? 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 shadow-sm'
+                  : 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20 shadow-sm'
+              }`}
+              title={
+                activeLanguage === 'roman-urdu'
+                  ? 'Voice Control: Kuch bhi bol kar kahein aur yeh karega'
+                  : activeLanguage === 'urdu'
+                  ? 'آوازی کنٹرول: کچھ بھی بولیں اور یہ کرے گا'
+                  : 'Voice Control Assistant: Speak any command or task'
+              }
+            >
+              <Mic className={`h-3.5 w-3.5 ${isVoiceAssistantOpen ? 'text-rose-400 animate-bounce' : 'text-indigo-400'}`} />
+              <span className="hidden sm:inline">Voice</span>
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+              </span>
+            </button>
+          )}
 
           {/* Smart Auto Match */}
           <button
